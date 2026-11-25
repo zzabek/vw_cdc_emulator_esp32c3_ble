@@ -1,0 +1,161 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>VW CDC BLE Control</title>
+  <link rel="stylesheet" href="/style.css">
+</head>
+<body>
+  <div class="container">
+    <header class="topbar">
+      <div class="brand">
+        <h1 id="devTitle">VW CDC Emulator</h1>
+        <span id="fwBadge" class="pill pill-info mono">...</span>
+        <span id="bleBadge" class="pill pill-err">Disconnected</span>
+      </div>
+      <div class="topbar-actions">
+        <a class="btn" href="/update">Firmware Update (OTA)</a>
+      </div>
+    </header>
+
+    <!-- STATUS & QUICK BLUETOOTH CONTROLS -->
+    <section class="card">
+      <div class="card-header">
+        <h2>Bluetooth &amp; Quick Test</h2>
+        <div class="row-flex">
+          <button type="button" onclick="toggleAdv()">Toggle Advertising</button>
+          <button type="button" class="btn-danger" onclick="deleteBonds()">Delete Bonds &amp; Restart</button>
+        </div>
+      </div>
+
+      <div class="grid-2">
+        <div class="stat-box">
+          <div class="stat-label">BLE HID Status</div>
+          <div class="stat-value">
+            <span id="bleText">Disconnected</span>
+            <span class="muted"> | Adv: <span id="advText">-</span></span>
+          </div>
+          <div class="muted spacer-top">
+            Subscribed clients — Media: <strong id="mSubs">0</strong>, Keys (F1-F24): <strong id="kSubs">0</strong>
+          </div>
+        </div>
+
+        <div class="stat-box">
+          <div class="stat-label">Send Manual HID Test</div>
+          <div class="row-flex spacer-top">
+            <select id="testPreset" onchange="syncPresetToInput('testPreset','testHex')"></select>
+            <input id="testHex" class="input-hex" value="0x00CD" placeholder="0x00CD">
+            <button type="button" class="btn-primary" onclick="sendManualTest()">Send HID</button>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- DYNAMIC BUTTON MAPPING & AUTO-LEARN -->
+    <section class="card">
+      <div class="card-header">
+        <div>
+          <h2>Radio Buttons (Auto-Learn)</h2>
+          <div class="muted">
+            Starts empty and automatically learns every new <span class="mono">53 2C &lt;cmd&gt; &lt;~cmd&gt;</span> packet pressed on the radio. Assign a BLE HID action and optional head-unit display behavior below.
+          </div>
+        </div>
+        <span class="pill pill-ok">Auto-Learn Active</span>
+      </div>
+
+      <div class="learn-banner">
+        <div>
+          <span class="muted">Last Radio Packet:</span>
+          <span id="lastRxCode" class="pkt-badge">--</span>
+          <strong id="lastRxName" class="mono">none yet</strong>
+          <span id="lastRxHint" class="pkt-hint"></span>
+          <span id="lastRxAge" class="muted"></span>
+        </div>
+        <div class="row-flex">
+          <span id="dirtyBadge" class="pill pill-warn hidden">Unsaved edits</span>
+          <span class="pill pill-sticky">STICKY = stays on disc</span>
+          <span class="pill pill-momentary">MOMENTARY = 250ms flash &amp; return</span>
+        </div>
+      </div>
+
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>Packet</th>
+              <th>Button Name</th>
+              <th>BLE HID Action</th>
+              <th>Radio Display Behavior</th>
+              <th>Actions</th>
+            </tr>
+          </thead>
+          <tbody id="cmdBody">
+            <tr><td colspan="5" class="muted">Loading configuration...</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="row-flex spacer-top">
+        <button type="button" class="btn-primary" onclick="saveAllButtons()">Save All Changes</button>
+        <button type="button" onclick="toggleAddManual()">+ Add Packet Manually</button>
+        <button type="button" class="btn-danger" onclick="clearAllButtons()">Clear All</button>
+      </div>
+
+      <div id="manualAddBox" class="manual-add-box hidden">
+        <div class="row-flex">
+          <span class="muted">Add / Update Packet:</span>
+          <input id="addCode" class="input-hex" placeholder="0x0C">
+          <input id="addName" class="input-name" maxlength="15" placeholder="Name (e.g. MODE)">
+          <select id="addHidPreset" onchange="syncPresetToInput('addHidPreset','addHid')"></select>
+          <input id="addHid" class="input-hex" value="0x0000">
+          <button type="button" class="btn-primary btn-sm" onclick="addManualEntry()">Add Row</button>
+        </div>
+      </div>
+    </section>
+
+    <!-- BLE KEEPALIVE -->
+    <section class="card">
+      <div class="card-header">
+        <div>
+          <h2>BLE Keepalive</h2>
+          <div class="muted">Periodically sends a neutral HID key while connected so the phone stays awake and keeps the link active.</div>
+        </div>
+        <label class="switch-wrap">
+          <input id="kaEnabled" type="checkbox" class="switch">
+          <span>Enabled</span>
+        </label>
+      </div>
+
+      <div class="row-flex">
+        <label class="muted">Interval (ms):
+          <input id="kaInterval" class="input-num" type="number" min="1000" max="60000" step="500" value="5000">
+        </label>
+        <label class="muted">HID Key:
+          <select id="kaPreset" onchange="syncPresetToInput('kaPreset','kaCode')"></select>
+        </label>
+        <input id="kaCode" class="input-hex" value="0xF008">
+        <button type="button" class="btn-primary" onclick="saveKeepalive()">Save Keepalive</button>
+      </div>
+    </section>
+
+    <!-- DIAGNOSTICS -->
+    <section class="card">
+      <details>
+        <summary>Diagnostics &amp; BLE Event Log</summary>
+        <pre id="diagCounters" class="diag-pre">Waiting for telemetry...</pre>
+        <div class="muted mono" id="diagEvents">Events: -</div>
+        <div class="row-flex spacer-top">
+          <button type="button" onclick="togglePrefix()">Toggle Report ID Prefix</button>
+          <button type="button" onclick="loadDump()">Load Full Dump</button>
+          <button type="button" onclick="copyDump()">Copy Dump</button>
+        </div>
+        <textarea id="dumpBox" class="dump-box" readonly placeholder="Click 'Load Full Dump' to generate a diagnostic snapshot..."></textarea>
+      </details>
+    </section>
+  </div>
+
+  <div id="toast"></div>
+  <script src="/app.js"></script>
+</body>
+</html>

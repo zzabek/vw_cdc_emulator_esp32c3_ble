@@ -1,0 +1,24 @@
+# PlatformIO build & dependencies
+.pio/
+
+# IDE & editor files
+.vscode/
+*.code-workspace
+
+# Compiled binaries & artifacts
+*.bin
+*.elf
+*.map
+
+# Local documentation & Office temporary/lock files
+*.docx
+~$*
+~WRL*.tmp
+
+# Cloud sync conflicts & scratch dumps
+*SFConflict*
+for_ai.txt
+
+# OS metadata
+.DS_Store
+Thumbs.db
